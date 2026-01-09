@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Connect to Strava - Commute Tracker{% endblock %}
+
+{% block content %}
+<div class="min-h-[60vh] flex items-center justify-center">
+    <div class="max-w-md w-full">
+        <!-- Hero Card -->
+        <div class="card p-8 text-center">
+            <!-- Logo/Icon -->
+            <div class="mx-auto w-16 h-16 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                </svg>
+            </div>
+            
+            <!-- Title -->
+            <h1 class="text-2xl font-bold text-slate-900 mb-2">Strava Commute Tracker</h1>
+            <p class="text-slate-600 mb-8">Track, analyze, and manage your cycling commutes with ease.</p>
+            
+            <!-- Features List -->
+            <div class="text-left mb-8 space-y-3">
+                <div class="flex items-center space-x-3">
+                    <div class="flex-shrink-0 w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                    </div>
+                    <span class="text-sm text-slate-700">Automatic commute detection</span>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <div class="flex-shrink-0 w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                    </div>
+                    <span class="text-sm text-slate-700">Monthly statistics & insights</span>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <div class="flex-shrink-0 w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                    </div>
+                    <span class="text-sm text-slate-700">Interactive heatmaps</span>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <div class="flex-shrink-0 w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                    </div>
+                    <span class="text-sm text-slate-700">Bulk activity management</span>
+                </div>
+            </div>
+            
+            <!-- Connect Button -->
+            <a href="{{ authorize_url }}" 
+               class="w-full inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-[#FC4C02] hover:bg-[#E34402] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FC4C02] transition-colors duration-200 shadow-sm">
+                <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/>
+                </svg>
+                Connect with Strava
+            </a>
+            
+            <!-- Privacy Note -->
+            <p class="mt-6 text-xs text-slate-500">
+                We only access your activity data to identify commutes. Your data stays private.
+            </p>
+        </div>
+        
+        <!-- Additional Info -->
+        <div class="mt-6 text-center">
+            <p class="text-sm text-slate-500">
+                Don't have a Strava account? 
+                <a href="https://www.strava.com/register" target="_blank" class="text-indigo-600 hover:text-indigo-800 font-medium">
+                    Sign up for free
+                </a>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
