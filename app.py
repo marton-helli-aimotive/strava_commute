@@ -52,7 +52,7 @@ app.secret_key = os.getenv('FLASK_SECRET_KEY', 'default_secret_key')
 
 CLIENT_ID = os.getenv('STRAVA_CLIENT_ID')
 CLIENT_SECRET = os.getenv('STRAVA_CLIENT_SECRET')
-REDIRECT_URI = 'http://localhost:5000/authorization'
+REDIRECT_URI = os.getenv('STRAVA_REDIRECT_URI', 'http://localhost:5000/authorization')
 
 client = Client()
 
