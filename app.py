@@ -1,19 +1,53 @@
 import os
 import time
-from datetime import datetime, timedelta
+import math
+from datetime import datetime, timedelta, timezone
+from collections import Counter
 from flask import Flask, redirect, url_for, session, request, render_template, jsonify
 from stravalib.client import Client
 from dotenv import load_dotenv
-import pandas as pd
-import numpy as np
-from sklearn.cluster import DBSCAN
 import folium
 from folium.plugins import HeatMap
 import polyline
+from timezonefinder import TimezoneFinder
+from zoneinfo import ZoneInfo
 
 load_dotenv()
 
 app = Flask(__name__)
+
+# Initialize timezone finder (singleton for performance)
+_tf = TimezoneFinder()
+
+
+def get_timezone_for_location(lat, lng):
+    """Get timezone string for given coordinates."""
+    if lat is None or lng is None:
+        return None
+    tz_str = _tf.timezone_at(lat=lat, lng=lng)
+    return tz_str
+
+
+def convert_to_local_time(dt, tz_str):
+    """Convert a datetime to the specified timezone.
+    
+    Args:
+        dt: datetime object (can be naive or aware)
+        tz_str: timezone string like 'Europe/Budapest'
+    
+    Returns:
+        datetime in the specified timezone, or original if conversion fails
+    """
+    if dt is None or tz_str is None:
+        return dt
+    try:
+        tz = ZoneInfo(tz_str)
+        # If datetime is naive, assume it's UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(tz)
+    except Exception:
+        return dt
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'default_secret_key')
 
 CLIENT_ID = os.getenv('STRAVA_CLIENT_ID')
@@ -69,45 +103,90 @@ def logout():
     return redirect(url_for('index'))
 
 def identify_locations(activities):
+    """Identify home and work locations using simple grid-based clustering.
+    
+    Points are rounded to ~100m precision and the two most frequent locations
+    are identified. Then, departure times are analyzed to determine which is
+    home (earlier departures = "to work") and which is work (later departures = "to home").
+    """
     points = []
     for act in activities:
         if act.start_latlng:
-            points.append([float(act.start_latlng.root[0]), float(act.start_latlng.root[1])])
+            lat = float(act.start_latlng.root[0])
+            lng = float(act.start_latlng.root[1])
+            points.append((lat, lng))
         if act.end_latlng:
-            points.append([float(act.end_latlng.root[0]), float(act.end_latlng.root[1])])
+            lat = float(act.end_latlng.root[0])
+            lng = float(act.end_latlng.root[1])
+            points.append((lat, lng))
     
     if not points:
         return None, None
     
-    # Use DBSCAN to find clusters of points
-    coords = np.array(points)
-    kms_per_radian = 6371.0088
-    epsilon = 0.3 / kms_per_radian # 300 meters
-    db = DBSCAN(eps=epsilon, min_samples=3, algorithm='ball_tree', metric='haversine').fit(np.radians(coords))
+    # Round coordinates to ~100m precision (3 decimal places ≈ 111m)
+    rounded_points = [(round(lat, 3), round(lng, 3)) for lat, lng in points]
     
-    cluster_labels = db.labels_
-    num_clusters = len(set(cluster_labels)) - (1 if -1 in cluster_labels else 0)
+    # Count occurrences of each rounded location
+    counter = Counter(rounded_points)
+    most_common = counter.most_common(2)
     
-    if num_clusters < 2:
-        # Fallback if not enough clusters found
+    if len(most_common) < 2:
+        # Not enough distinct locations found
         return None, None
     
-    clusters = []
-    for i in range(num_clusters):
-        cluster_points = coords[cluster_labels == i]
-        clusters.append({
-            'center': cluster_points.mean(axis=0),
-            'count': len(cluster_points)
-        })
+    # Initially assign the two most frequent locations as loc_a and loc_b
+    loc_a = list(most_common[0][0])
+    loc_b = list(most_common[1][0])
     
-    # Sort by count descending
-    clusters.sort(key=lambda x: x['count'], reverse=True)
-    
-    # Assume the two most frequent clusters are Home and Work
-    home = clusters[0]['center'].tolist()
-    work = clusters[1]['center'].tolist()
+    # Use departure times to determine which is home vs work
+    # Home: where you leave FROM in the morning (to go to work)
+    # Work: where you leave FROM in the evening (to go home)
+    home, work = _assign_home_work_by_time(activities, loc_a, loc_b)
     
     return home, work
+
+
+def _assign_home_work_by_time(activities, loc_a, loc_b):
+    """Determine which location is home and which is work based on departure times.
+    
+    People typically leave home in the morning (earlier) and leave work in the evening (later).
+    We analyze the average departure times from each location to make this determination.
+    """
+    # Collect departure times (minutes since midnight) from each location
+    times_from_a = []
+    times_from_b = []
+    
+    for act in activities:
+        if act.start_latlng is None or not is_workday_with_cutoff(act.start_date, cutoff_hour=3):
+            continue
+        
+        start_coords = act.start_latlng.root if hasattr(act.start_latlng, 'root') else act.start_latlng
+        start_rounded = (round(float(start_coords[0]), 3), round(float(start_coords[1]), 3))
+        
+        minutes_since_midnight = act.start_date.hour * 60 + act.start_date.minute
+        
+        # Check which location this activity starts from
+        if start_rounded == tuple(loc_a):
+            times_from_a.append(minutes_since_midnight)
+        elif start_rounded == tuple(loc_b):
+            times_from_b.append(minutes_since_midnight)
+    
+    # Calculate average departure times
+    avg_from_a = sum(times_from_a) / len(times_from_a) if times_from_a else None
+    avg_from_b = sum(times_from_b) / len(times_from_b) if times_from_b else None
+    
+    # If we can't determine times, fall back to original order
+    if avg_from_a is None or avg_from_b is None:
+        return loc_a, loc_b
+    
+    # Home is where you leave earlier (morning commute to work)
+    # Work is where you leave later (evening commute to home)
+    if avg_from_a < avg_from_b:
+        # loc_a has earlier departures -> it's home
+        return loc_a, loc_b
+    else:
+        # loc_b has earlier departures -> it's home
+        return loc_b, loc_a
 
 def is_near(p1, p2, threshold_km=1.0):
     if p1 is None or p2 is None:
@@ -119,8 +198,8 @@ def is_near(p1, p2, threshold_km=1.0):
 
     # Simple Euclidean distance for small distances (approximate)
     dlat = (p1_coords[0] - p2_coords[0]) * 111
-    dlng = (p1_coords[1] - p2_coords[1]) * 111 * np.cos(np.radians(p1_coords[0]))
-    return np.sqrt(dlat**2 + dlng**2) < threshold_km
+    dlng = (p1_coords[1] - p2_coords[1]) * 111 * math.cos(math.radians(p1_coords[0]))
+    return math.sqrt(dlat**2 + dlng**2) < threshold_km
 
 
 def is_workday_with_cutoff(dt: datetime, cutoff_hour: int = 3) -> bool:
@@ -259,13 +338,17 @@ def monthly_stats():
     
     commutes, commute_ids = analyze_commutes(activities, home, work)
     
+    # Get timezone from home location for displaying local times
+    home_tz_str = get_timezone_for_location(home[0], home[1]) if home else None
+    
     stats = {}
     month_key = selected_month
     stats[month_key] = {
         'count': 0, 
         'distance': 0.0, 
         'commutes': [],
-        'all_activities': []
+        'all_activities': [],
+        'timezone': home_tz_str  # Store timezone for display in template
     }
     
     # Build the list of all activities for display, grouping chained commutes
@@ -276,12 +359,15 @@ def monthly_stats():
     for c in commutes:
         ids = [a.id for a in c['activities']]
         names = [a.name for a in c['activities']]
+        # Convert date to local time for display
+        local_date = convert_to_local_time(c['date'], home_tz_str) if home_tz_str else c['date']
         all_display_items.append({
             'ids': ids,
             'names': names,
             'is_commute': True,
             'type': c['type'],
-            'date': c['date'],
+            'date': c['date'],  # Keep original for sorting
+            'local_date': local_date,  # Local time for display
             'distance': c['distance']
         })
         for aid in ids:
@@ -290,12 +376,14 @@ def monthly_stats():
     # Then, add remaining non-commute activities
     for act in activities:
         if act.id not in processed_activity_ids:
+            local_date = convert_to_local_time(act.start_date, home_tz_str) if home_tz_str else act.start_date
             all_display_items.append({
                 'ids': [act.id],
                 'names': [act.name],
                 'is_commute': False,
                 'type': None,
-                'date': act.start_date,
+                'date': act.start_date,  # Keep original for sorting
+                'local_date': local_date,  # Local time for display
                 'distance': float(act.distance)
             })
 
@@ -317,11 +405,14 @@ def monthly_stats():
         stats[month_key]['avg_dist'] = 0
     
     # Calculate average departure times and standard deviations
-    to_work_times = []  # minutes since midnight
+    to_work_times = []  # minutes since midnight (in local time)
     to_home_times = []
     
     for c in stats[month_key]['commutes']:
         departure = c['date']
+        # Convert to home timezone for accurate local time display
+        if home_tz_str:
+            departure = convert_to_local_time(departure, home_tz_str)
         minutes_since_midnight = departure.hour * 60 + departure.minute
         if c.get('direction') == 'to_work':
             to_work_times.append(minutes_since_midnight)
@@ -338,8 +429,12 @@ def monthly_stats():
         """Calculate average and std dev for a list of times (in minutes)."""
         if not times_list:
             return None, None
-        avg = np.mean(times_list)
-        std = np.std(times_list) if len(times_list) > 1 else 0
+        avg = sum(times_list) / len(times_list)
+        if len(times_list) > 1:
+            variance = sum((x - avg) ** 2 for x in times_list) / len(times_list)
+            std = math.sqrt(variance)
+        else:
+            std = 0
         return avg, std
     
     to_work_avg, to_work_std = calc_time_stats(to_work_times)
