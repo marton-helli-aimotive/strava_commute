@@ -54,6 +54,15 @@ CLIENT_ID = os.getenv('STRAVA_CLIENT_ID')
 CLIENT_SECRET = os.getenv('STRAVA_CLIENT_SECRET')
 REDIRECT_URI = os.getenv('STRAVA_REDIRECT_URI', 'http://localhost:5000/authorization')
 
+# Supported activity types
+ALL_ACTIVITY_TYPES = {
+    'Ride': ['Ride', 'VirtualRide'],
+    'Walk': ['Walk'],
+    'EBikeRide': ['EBikeRide'],
+    'Run': ['Run'],
+}
+DEFAULT_ACTIVITY_TYPES = ['Ride']  # Default checked in UI
+
 client = Client()
 
 def get_strava_client():
@@ -103,11 +112,12 @@ def logout():
     return redirect(url_for('index'))
 
 def identify_locations(activities):
-    """Identify home and work locations using simple grid-based clustering.
+    """
+    Infers home and work locations from activity endpoints to enable commute detection 
+    without requiring manual configuration.
     
-    Points are rounded to ~100m precision and the two most frequent locations
-    are identified. Then, departure times are analyzed to determine which is
-    home (earlier departures = "to work") and which is work (later departures = "to home").
+    We cluster start/end points to find the two most frequent locations, then use 
+    departure times to distinguish between them (morning departures = Home).
     """
     points = []
     for act in activities:
@@ -123,34 +133,33 @@ def identify_locations(activities):
     if not points:
         return None, None
     
-    # Round coordinates to ~100m precision (3 decimal places ≈ 111m)
+    # We round to ~100m to group nearby points (e.g. driveway vs garage)
     rounded_points = [(round(lat, 3), round(lng, 3)) for lat, lng in points]
     
-    # Count occurrences of each rounded location
+    # Find the top 2 most visited locations (Home and Work)
     counter = Counter(rounded_points)
     most_common = counter.most_common(2)
     
     if len(most_common) < 2:
-        # Not enough distinct locations found
         return None, None
     
-    # Initially assign the two most frequent locations as loc_a and loc_b
     loc_a = list(most_common[0][0])
     loc_b = list(most_common[1][0])
     
-    # Use departure times to determine which is home vs work
-    # Home: where you leave FROM in the morning (to go to work)
-    # Work: where you leave FROM in the evening (to go home)
+    # We use departure times to distinguish between them:
+    # Morning departures (to Work) originate from Home.
+    # Evening departures (to Home) originate from Work.
     home, work = _assign_home_work_by_time(activities, loc_a, loc_b)
     
     return home, work
 
 
 def _assign_home_work_by_time(activities, loc_a, loc_b):
-    """Determine which location is home and which is work based on departure times.
+    """
+    Disambiguates Home vs Work based on time-of-day patterns.
     
-    People typically leave home in the morning (earlier) and leave work in the evening (later).
-    We analyze the average departure times from each location to make this determination.
+    We assume the morning commute starts from Home and the evening commute 
+    starts from Work.
     """
     # Collect departure times (minutes since midnight) from each location
     times_from_a = []
@@ -227,13 +236,13 @@ def analyze_commutes(activities, home, work):
     while i < len(activities):
         act = activities[i]
 
-        # Weekend filter (with 03:00 cutoff): weekend rides are not commutes.
-        # Example: Fri 01:00 (after midnight) still counts as Friday.
+        # Exclude weekends as they are rarely commutes, even if the route matches.
+        # We use a 3am cutoff so late Friday night rides count as Friday.
         if not is_workday_with_cutoff(act.start_date, cutoff_hour=3):
             i += 1
             continue
         
-        # Check if direct commute
+        # MATCHING: Check for simple, direct commutes (A -> B)
         is_h_to_w = is_near(act.start_latlng, home) and is_near(act.end_latlng, work)
         is_w_to_h = is_near(act.start_latlng, work) and is_near(act.end_latlng, home)
         
@@ -249,7 +258,8 @@ def analyze_commutes(activities, home, work):
             i += 1
             continue
             
-        # Check for chained activities
+        # MATCHING: Check for chained activities (multi-leg commutes)
+        # We look for a sequence of activities that eventually reaches the destination.
         chain = []
         current_start = act.start_latlng
         if is_near(current_start, home) or is_near(current_start, work):
@@ -292,7 +302,7 @@ def analyze_commutes(activities, home, work):
                 })
                 for a in chain:
                     commute_activity_ids.add(a.id)
-                # For distance estimation: "these chained activities should not be part of the commute distance estimation"
+                # We sum the distances of the chained activities to estimate the total commute distance
                 i = temp_i
                 continue
         
@@ -312,14 +322,38 @@ def monthly_stats():
     if not sc:
         return redirect(url_for('index'))
     
+    # Get current athlete info
+    athlete = sc.get_athlete()
+
+    
     selected_month = request.args.get('month')
     if not selected_month:
         selected_month = datetime.now().strftime('%Y-%m')
     
-    # Identify home/work locations using a wider range for better results (e.g., last 180 days)
+    # Get selected activity types from query params 
+    selected_types = request.args.getlist('activity_types')
+    if not selected_types:
+        selected_types = DEFAULT_ACTIVITY_TYPES
+    
+    # Build the list of Strava activity type strings to filter
+    strava_types = []
+    for t in selected_types:
+        if t in ALL_ACTIVITY_TYPES:
+            strava_types.extend(ALL_ACTIVITY_TYPES[t])
+    if not strava_types:
+        # Fallback to default types if selection is invalid/empty
+        for t in DEFAULT_ACTIVITY_TYPES:
+            strava_types.extend(ALL_ACTIVITY_TYPES.get(t, []))
+    
+    # Identify home/work locations using a wider range for better results
+    # We infer locations from the user's recent history (180 days) to accommodate movers or seasonal changes.
     after_locations = datetime.now() - timedelta(days=180)
     all_activities_for_id = list(sc.get_activities(after=after_locations, limit=200))
-    all_activities_for_id = [a for a in all_activities_for_id if a.type in ['Ride', 'VirtualRide']]
+    
+    # Use all supported types for location identification so we don't bias towards just Rides
+    all_supported_types = [t for types in ALL_ACTIVITY_TYPES.values() for t in types]
+    all_activities_for_id = [a for a in all_activities_for_id if a.type in all_supported_types]
+    
     home, work = identify_locations(all_activities_for_id)
     
     # Get available months from the last 2 years
@@ -334,7 +368,11 @@ def monthly_stats():
     before = (after + timedelta(days=32)).replace(day=1)
     
     activities = list(sc.get_activities(after=after, before=before, limit=200))
-    activities = [a for a in activities if a.type in ['Ride', 'VirtualRide']]
+    activities = [a for a in activities if a.type in strava_types]
+    
+    # Build a dict mapping activity ID to its commute status from Strava
+    # (the 'commute' field indicates if user has already marked it)
+    activity_commute_flags = {a.id: getattr(a, 'commute', False) for a in activities}
     
     commutes, commute_ids = analyze_commutes(activities, home, work)
     
@@ -355,16 +393,23 @@ def monthly_stats():
     all_display_items = []
     processed_activity_ids = set()
 
-    # First, add grouped commutes
+    # First, add grouped commutes (these are "recommended" or "done" based on Strava flag)
     for c in commutes:
         ids = [a.id for a in c['activities']]
         names = [a.name for a in c['activities']]
         # Convert date to local time for display
         local_date = convert_to_local_time(c['date'], home_tz_str) if home_tz_str else c['date']
+        
+        # Determine commute_status: if any activity in the group already has commute flag, it's "added"
+        # Since we are iterating over 'commutes' (which are algorithmically detected chains/direct),
+        # these are either existing commutes (added) or recommended ones.
+        has_strava_commute = any(activity_commute_flags.get(aid, False) for aid in ids)
+        commute_status = 'added' if has_strava_commute else 'recommended'
+        
         all_display_items.append({
             'ids': ids,
             'names': names,
-            'is_commute': True,
+            'commute_status': commute_status,  # 'added', 'recommended', or 'not_recommended'
             'type': c['type'],
             'date': c['date'],  # Keep original for sorting
             'local_date': local_date,  # Local time for display
@@ -377,10 +422,15 @@ def monthly_stats():
     for act in activities:
         if act.id not in processed_activity_ids:
             local_date = convert_to_local_time(act.start_date, home_tz_str) if home_tz_str else act.start_date
+            
+            # Check if this activity has commute flag set in Strava
+            has_strava_commute = activity_commute_flags.get(act.id, False)
+            commute_status = 'added' if has_strava_commute else 'not_recommended'
+            
             all_display_items.append({
                 'ids': [act.id],
                 'names': [act.name],
-                'is_commute': False,
+                'commute_status': commute_status,
                 'type': None,
                 'date': act.start_date,  # Keep original for sorting
                 'local_date': local_date,  # Local time for display
@@ -391,7 +441,30 @@ def monthly_stats():
     all_display_items.sort(key=lambda x: x['date'])
     stats[month_key]['all_activities'] = all_display_items
 
+    stats[month_key]['all_activities'] = all_display_items
+
+    # We prioritize "Added" (user-confirmed) commutes over "Recommended" ones
+    # to avoid double counting. If the user has manually confirmed any commutes,
+    # we hide the algorithmic suggestions to keep the stats clean.
+    
+    # Identify which of the detected 'commutes' are actually 'added' (marked as commute on Strava)
+    added_commutes = []
+    recommended_commutes = []
+    
     for c in commutes:
+        ids = [a.id for a in c['activities']]
+        if any(activity_commute_flags.get(aid, False) for aid in ids):
+            added_commutes.append(c)
+        else:
+            recommended_commutes.append(c)
+    
+    has_added_commutes = len(added_commutes) > 0
+    stats[month_key]['has_added_commutes'] = has_added_commutes
+    
+    # Decide which set of commutes to use for statistics
+    commutes_to_count = added_commutes if has_added_commutes else recommended_commutes
+    
+    for c in commutes_to_count:
         stats[month_key]['count'] += 1
         if c['type'] == 'direct':
             stats[month_key]['distance'] += c['distance']
@@ -450,7 +523,8 @@ def monthly_stats():
     stats[month_key]['all_activities'].sort(key=lambda x: x['date'])
 
     return render_template('stats.html', stats=stats, home=home, work=work, 
-                           available_months=available_months, selected_month=selected_month)
+                           available_months=available_months, selected_month=selected_month,
+                           all_activity_types=ALL_ACTIVITY_TYPES, selected_types=selected_types)
 
 @app.route('/map/<month>')
 def commute_map(month):
@@ -464,15 +538,18 @@ def commute_map(month):
         selected_ids = None
 
     # Re-fetch activities to get map data (polylines)
+    # We want to show all supported activity types on the map, not just rides.
+    all_supported_types = [t for types in ALL_ACTIVITY_TYPES.values() for t in types]
+    
     after_month = datetime.strptime(month, '%Y-%m')
     next_month = (after_month + timedelta(days=32)).replace(day=1)
     activities = list(sc.get_activities(after=after_month, before=next_month, limit=200))
-    activities = [a for a in activities if a.type in ['Ride', 'VirtualRide']]
+    activities = [a for a in activities if a.type in all_supported_types]
     
     # Identify locations based on a wider range for consistency
     after_locations = datetime.now() - timedelta(days=180)
     all_activities_for_id = list(sc.get_activities(after=after_locations, limit=200))
-    all_activities_for_id = [a for a in all_activities_for_id if a.type in ['Ride', 'VirtualRide']]
+    all_activities_for_id = [a for a in all_activities_for_id if a.type in all_supported_types]
     home, work = identify_locations(all_activities_for_id)
 
     # Filter for selected activities for heatmap
@@ -502,8 +579,7 @@ def commute_map(month):
                 return "No GPS data found for selected activities in this month."
 
     if all_points:
-        # radius=10 and blur=10 helps to differentiate between frequent and infrequent routes.
-        # Frequent routes will overlap and appear warmer, while single trips remain as 'colder' traces.
+        # We blur the heatmap to visualize common corridors (commutes) vs one-off trips
         HeatMap(all_points, radius=10, blur=10, min_opacity=0.3).add_to(m)
         
     if home is not None:
@@ -518,29 +594,31 @@ def mass_edit():
     sc = get_strava_client()
     if not sc: return jsonify({'error': 'Not authenticated'}), 401
     
-    activity_ids = request.form.getlist('activity_ids')
-    for aid in activity_ids:
-        # Update to commute
+
+    
+    # Get checked activity IDs (to mark as commute)
+    checked_ids = set(request.form.getlist('activity_ids'))
+    
+    # Get all activity IDs that were in the form (both checked and unchecked)
+    all_ids = set(request.form.getlist('all_activity_ids'))
+    
+    # Unchecked IDs (to remove commute flair)
+    unchecked_ids = all_ids - checked_ids
+    
+    access_token = session['access_token']
+    import requests as r
+    headers = {'Authorization': f'Bearer {access_token}'}
+    
+    # Mark checked activities as commute and set visibility to followers_only
+    for aid in checked_ids:
         sc.update_activity(aid, commute=True)
-        
-        # Visibility "followers_only" and "private" check
-        # stravalib might not expose 'visibility' directly in update_activity.
-        # We might need to use a raw PUT request to https://www.strava.com/api/v3/activities/{id}
-        # with 'visibility': 'followers_only'
-        
-        # First check current visibility/private status
-        # activity = sc.get_activity(aid)
-        # if activity.private:
-        #     # stravalib update_activity doesn't seem to have visibility. 
-        #     # Using requests to hit the API directly.
-        
-        access_token = session['access_token']
-        import requests as r
-        headers = {'Authorization': f'Bearer {access_token}'}
-        # To set visibility to followers_only, we can try this:
         r.put(f'https://www.strava.com/api/v3/activities/{aid}', 
               headers=headers, 
               data={'visibility': 'followers_only'})
+    
+    # Remove commute flair from unchecked activities
+    for aid in unchecked_ids:
+        sc.update_activity(aid, commute=False)
     
     month = request.form.get('month')
     return redirect(url_for('monthly_stats', month=month))

@@ -11,34 +11,74 @@
 
 <!-- Month Selector Card -->
 <div class="card p-6 mb-6">
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div class="flex items-center space-x-3">
-            <label for="month-selector" class="text-sm font-medium text-slate-700">Select Month:</label>
-            <select id="month-selector" onchange="changeMonth(this.value)" 
+    <div class="flex flex-col gap-4">
+        <!-- Row 1: Month selector and Admin view -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <label for="month-selector" class="text-sm font-medium text-slate-700">Select Month:</label>
+                <select id="month-selector" onchange="updateFilters()"
                     class="block w-40 rounded-lg border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border">
-                {% for m in available_months %}
-                    <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ m }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        
-        <!-- Location Info -->
-        <div class="flex items-center space-x-2">
-            {% if home is not none and work is not none %}
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    {% for m in available_months %}
+                    <option value="{{ m }}" {% if m==selected_month %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+
+
+            <!-- Location Info -->
+            <div class="flex items-center space-x-2">
+                {% if home is not none and work is not none %}
+                <span
+                    class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                     <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        <path fill-rule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                            clip-rule="evenodd"></path>
                     </svg>
                     Locations detected
                 </span>
-            {% else %}
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                {% else %}
+                <span
+                    class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                     <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                        <path fill-rule="evenodd"
+                            d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                            clip-rule="evenodd"></path>
                     </svg>
                     Need more activities to detect locations
                 </span>
-            {% endif %}
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Row 2: Activity Type Filters -->
+        <div class="flex flex-wrap items-center gap-4 border-t border-slate-200 pt-4">
+            <span class="text-sm font-medium text-slate-700">Activity Types:</span>
+            <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="filter-Ride" value="Ride" onchange="updateFilters()"
+                    class="activity-type-filter h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded"
+                    {% if 'Ride' in selected_types %}checked{% endif %}>
+                <span class="ml-2 text-sm text-slate-700">🚲 Bicycle</span>
+            </label>
+            <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="filter-EBikeRide" value="EBikeRide" onchange="updateFilters()"
+                    class="activity-type-filter h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded"
+                    {% if 'EBikeRide' in selected_types %}checked{% endif %}>
+                <span class="ml-2 text-sm text-slate-700">⚡ E-Bike</span>
+            </label>
+            <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="filter-Walk" value="Walk" onchange="updateFilters()"
+                    class="activity-type-filter h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded"
+                    {% if 'Walk' in selected_types %}checked{% endif %}>
+                <span class="ml-2 text-sm text-slate-700">🚶 Walk</span>
+            </label>
+            <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="filter-Run" value="Run" onchange="updateFilters()"
+                    class="activity-type-filter h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded"
+                    {% if 'Run' in selected_types %}checked{% endif %}>
+                <span class="ml-2 text-sm text-slate-700">🏃 Run</span>
+            </label>
         </div>
     </div>
 </div>
@@ -52,24 +92,35 @@
             <div class="flex-shrink-0">
                 <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
                     <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
+                        </path>
                     </svg>
                 </div>
             </div>
             <div class="ml-4">
                 <p class="text-sm font-medium text-slate-500">Commutes</p>
-                <p class="text-2xl font-bold text-slate-900">{{ data.count }}</p>
+                <div class="flex flex-col">
+                    <p class="text-2xl font-bold text-slate-900">
+                        {% if not data.has_added_commutes and data.count > 0 %}({{ data.count }}){% else %}{{ data.count
+                        }}{% endif %}
+                    </p>
+                    {% if not data.has_added_commutes and data.count > 0 %}
+                    <p class="text-xs text-slate-400">not added yet</p>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
-    
+
     <!-- Average Distance -->
     <div class="card p-6">
         <div class="flex items-center">
             <div class="flex-shrink-0">
                 <div class="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
                     <svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
                     </svg>
                 </div>
             </div>
@@ -79,58 +130,63 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Leave for Work -->
     <div class="card p-6">
         <div class="flex items-center">
             <div class="flex-shrink-0">
                 <div class="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
                     <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
                 </div>
             </div>
             <div class="ml-4">
                 <p class="text-sm font-medium text-slate-500">Leave for Work</p>
                 {% if data.to_work_avg %}
-                    <p class="text-2xl font-bold text-slate-900">{{ data.to_work_avg }}</p>
-                    <p class="text-xs text-slate-400">±{{ data.to_work_std }} min ({{ data.to_work_count }} trips)</p>
+                <p class="text-2xl font-bold text-slate-900">{{ data.to_work_avg }}</p>
+                <p class="text-xs text-slate-400">±{{ data.to_work_std }} min ({{ data.to_work_count }} trips)</p>
                 {% else %}
-                    <p class="text-lg text-slate-400">No data</p>
+                <p class="text-lg text-slate-400">No data</p>
                 {% endif %}
             </div>
         </div>
     </div>
-    
+
     <!-- Leave for Home -->
     <div class="card p-6">
         <div class="flex items-center">
             <div class="flex-shrink-0">
                 <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
                     <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6">
+                        </path>
                     </svg>
                 </div>
             </div>
             <div class="ml-4">
                 <p class="text-sm font-medium text-slate-500">Leave for Home</p>
                 {% if data.to_home_avg %}
-                    <p class="text-2xl font-bold text-slate-900">{{ data.to_home_avg }}</p>
-                    <p class="text-xs text-slate-400">±{{ data.to_home_std }} min ({{ data.to_home_count }} trips)</p>
+                <p class="text-2xl font-bold text-slate-900">{{ data.to_home_avg }}</p>
+                <p class="text-xs text-slate-400">±{{ data.to_home_std }} min ({{ data.to_home_count }} trips)</p>
                 {% else %}
-                    <p class="text-lg text-slate-400">No data</p>
+                <p class="text-lg text-slate-400">No data</p>
                 {% endif %}
             </div>
         </div>
     </div>
-    
+
     <!-- Month -->
     <div class="card p-6">
         <div class="flex items-center">
             <div class="flex-shrink-0">
                 <div class="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center">
                     <svg class="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z">
+                        </path>
                     </svg>
                 </div>
             </div>
@@ -147,40 +203,53 @@
     <!-- Tab Navigation -->
     <div class="border-b border-slate-200">
         <nav class="flex -mb-px" aria-label="Tabs">
-            <button type="button" onclick="switchTab('{{ month }}', 'activities')" 
-                    id="tab-activities-{{ month }}" 
-                    class="tab-btn active-tab px-6 py-4 text-sm font-medium border-b-2 border-indigo-500 text-indigo-600">
+            <button type="button" onclick="switchTab('{{ month }}', 'activities')" id="tab-activities-{{ month }}"
+                class="tab-btn active-tab px-6 py-4 text-sm font-medium border-b-2 border-indigo-500 text-indigo-600">
                 <svg class="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
                 </svg>
                 Activities
             </button>
-            <button type="button" onclick="switchTab('{{ month }}', 'heatmap')" 
-                    id="tab-heatmap-{{ month }}" 
-                    class="tab-btn px-6 py-4 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300">
+            <button type="button" onclick="switchTab('{{ month }}', 'heatmap')" id="tab-heatmap-{{ month }}"
+                class="tab-btn px-6 py-4 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300">
                 <svg class="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7">
+                    </path>
                 </svg>
                 Heatmap
             </button>
         </nav>
     </div>
-    
+
     <!-- Activities Tab Content -->
     <div id="content-activities-{{ month }}" class="tab-content">
         <form action="{{ url_for('mass_edit') }}" method="post">
             <input type="hidden" name="month" value="{{ month }}">
-            
+
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200">
                     <thead class="bg-slate-50">
                         <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Select</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Commute</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Type</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Distance</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Name(s)</th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                SET AS COMMUTE</th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                COMMUTE STATUS</th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                Type</th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                Date</th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                Distance</th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                Name(s)</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-slate-200">
@@ -188,31 +257,41 @@
                         <tr class="hover:bg-slate-50 transition-colors duration-150">
                             <td class="px-6 py-4 whitespace-nowrap">
                                 {% for aid in item.ids %}
-                                    <input type="checkbox" name="activity_ids" value="{{ aid }}" 
-                                           class="activity-checkbox h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded" 
-                                           data-month="{{ month }}" 
-                                           {% if item.is_commute %}checked{% endif %} 
-                                           style="{% if not loop.first %}display:none{% endif %}">
+                                <!-- Hidden input to track ALL activity IDs for the form -->
+                                <input type="hidden" name="all_activity_ids" value="{{ aid }}">
+                                <!-- Checkbox for selection -->
+                                <input type="checkbox" name="activity_ids" value="{{ aid }}"
+                                    class="activity-checkbox h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded"
+                                    data-month="{{ month }}" {% if item.commute_status in ['added', 'recommended' ]
+                                    %}checked{% endif %} style="{% if not loop.first %}display:none{% endif %}">
                                 {% endfor %}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                {% if item.is_commute %}
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        Yes
-                                    </span>
+                                {% if item.commute_status == 'added' %}
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    Added
+                                </span>
+                                {% elif item.commute_status == 'recommended' %}
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    Recommended
+                                </span>
                                 {% else %}
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
-                                        No
-                                    </span>
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                    Not recommended
+                                </span>
                                 {% endif %}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
                                 {% if item.type %}
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                                        {{ item.type }}
-                                    </span>
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                    {{ item.type }}
+                                </span>
                                 {% else %}
-                                    <span class="text-slate-400">-</span>
+                                <span class="text-slate-400">-</span>
                                 {% endif %}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
@@ -223,11 +302,10 @@
                             </td>
                             <td class="px-6 py-4 text-sm text-slate-600">
                                 {% for i in range(item.ids|length) %}
-                                    <a href="https://www.strava.com/activities/{{ item.ids[i] }}" 
-                                       target="_blank" 
-                                       class="text-indigo-600 hover:text-indigo-800 hover:underline">
-                                        {{ item.names[i] }}
-                                    </a>{% if not loop.last %}, {% endif %}
+                                <a href="https://www.strava.com/activities/{{ item.ids[i] }}" target="_blank"
+                                    class="text-indigo-600 hover:text-indigo-800 hover:underline">
+                                    {{ item.names[i] }}
+                                </a>{% if not loop.last %}, {% endif %}
                                 {% endfor %}
                             </td>
                         </tr>
@@ -235,35 +313,48 @@
                     </tbody>
                 </table>
             </div>
-            
+
             <div class="px-6 py-4 bg-slate-50 border-t border-slate-200">
                 <button type="submit" class="btn-primary">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
+                        </path>
                     </svg>
-                    Mark Selected as Commute & Followers Only
+                    Apply Commute Changes
                 </button>
+                <p class="mt-2 text-xs text-slate-500">
+                    Checked activities: marked as commute + visibility set to followers only.<br>
+                    Unchecked activities: commute flair removed.
+                </p>
             </div>
         </form>
     </div>
-    
+
     <!-- Heatmap Tab Content -->
     <div id="content-heatmap-{{ month }}" class="tab-content hidden">
         <div class="p-6">
-            <div id="heatmap-container-{{ month }}" class="w-full h-96 bg-slate-100 rounded-lg flex items-center justify-center">
+            <div id="heatmap-container-{{ month }}"
+                class="w-full h-96 bg-slate-100 rounded-lg flex items-center justify-center">
                 <div id="heatmap-placeholder-{{ month }}" class="text-center">
-                    <svg class="w-12 h-12 mx-auto text-slate-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
+                    <svg class="w-12 h-12 mx-auto text-slate-400 mb-4" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7">
+                        </path>
                     </svg>
                     <p class="text-slate-500 mb-4">Click to load heatmap for selected activities</p>
                     <button type="button" onclick="loadHeatmap('{{ month }}')" class="btn-primary">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                            </path>
                         </svg>
                         Load Heatmap
                     </button>
                 </div>
-                <iframe id="heatmap-iframe-{{ month }}" class="w-full h-full rounded-lg hidden" frameborder="0"></iframe>
+                <iframe id="heatmap-iframe-{{ month }}" class="w-full h-full rounded-lg hidden"
+                    frameborder="0"></iframe>
             </div>
         </div>
     </div>
@@ -273,21 +364,37 @@
 
 {% block scripts %}
 <script>
+    function updateFilters() {
+        const month = document.getElementById('month-selector').value;
+        const activityTypes = Array.from(document.querySelectorAll('.activity-type-filter:checked')).map(cb => cb.value);
+
+        // Build URL with query parameters
+        const params = new URLSearchParams();
+        params.set('month', month);
+
+        // Add each activity type as a separate parameter
+        activityTypes.forEach(type => params.append('activity_types', type));
+
+        window.location.href = `/stats?${params.toString()}`;
+    }
+
+    // Backwards compatibility alias
     function changeMonth(month) {
-        window.location.href = `/stats?month=${month}`;
+        document.getElementById('month-selector').value = month;
+        updateFilters();
     }
 
     function switchTab(month, tabName) {
         // Hide all tab contents for this month
         document.getElementById(`content-activities-${month}`).classList.add('hidden');
         document.getElementById(`content-heatmap-${month}`).classList.add('hidden');
-        
+
         // Remove active state from all tabs
         document.getElementById(`tab-activities-${month}`).classList.remove('border-indigo-500', 'text-indigo-600');
         document.getElementById(`tab-activities-${month}`).classList.add('border-transparent', 'text-slate-500');
         document.getElementById(`tab-heatmap-${month}`).classList.remove('border-indigo-500', 'text-indigo-600');
         document.getElementById(`tab-heatmap-${month}`).classList.add('border-transparent', 'text-slate-500');
-        
+
         // Show selected tab content and activate tab
         document.getElementById(`content-${tabName}-${month}`).classList.remove('hidden');
         document.getElementById(`tab-${tabName}-${month}`).classList.remove('border-transparent', 'text-slate-500');
@@ -301,10 +408,10 @@
             alert('Please select at least one activity to view the heatmap.');
             return;
         }
-        
+
         const placeholder = document.getElementById(`heatmap-placeholder-${month}`);
         const iframe = document.getElementById(`heatmap-iframe-${month}`);
-        
+
         // Show loading state
         placeholder.innerHTML = `
             <svg class="w-8 h-8 mx-auto text-indigo-500 animate-spin mb-4" fill="none" viewBox="0 0 24 24">
@@ -313,17 +420,17 @@
             </svg>
             <p class="text-slate-500">Loading heatmap...</p>
         `;
-        
+
         // Load the heatmap in iframe
         iframe.src = `/map/${month}?ids=${ids}`;
-        iframe.onload = function() {
+        iframe.onload = function () {
             placeholder.classList.add('hidden');
             iframe.classList.remove('hidden');
         };
     }
 
     // Add a helper to toggle all checkboxes in a row when the visible one is clicked
-    document.addEventListener('change', function(e) {
+    document.addEventListener('change', function (e) {
         if (e.target.classList.contains('activity-checkbox')) {
             const tr = e.target.closest('tr');
             const checkboxes = tr.querySelectorAll('.activity-checkbox');
