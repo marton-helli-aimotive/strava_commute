@@ -373,6 +373,8 @@ def monthly_stats():
     # Build a dict mapping activity ID to its commute status from Strava
     # (the 'commute' field indicates if user has already marked it)
     activity_commute_flags = {a.id: getattr(a, 'commute', False) for a in activities}
+    # Build a dict mapping activity ID to its visibility from Strava
+    activity_visibility = {a.id: getattr(a, 'visibility', None) for a in activities}
     
     commutes, commute_ids = analyze_commutes(activities, home, work)
     
@@ -401,14 +403,13 @@ def monthly_stats():
         local_date = convert_to_local_time(c['date'], home_tz_str) if home_tz_str else c['date']
         
         # Determine commute_status: if any activity in the group already has commute flag, it's "added"
-        # Since we are iterating over 'commutes' (which are algorithmically detected chains/direct),
-        # these are either existing commutes (added) or recommended ones.
         has_strava_commute = any(activity_commute_flags.get(aid, False) for aid in ids)
         commute_status = 'added' if has_strava_commute else 'recommended'
         
         all_display_items.append({
             'ids': ids,
             'names': names,
+            'visibilities': [activity_visibility.get(aid) for aid in ids],
             'commute_status': commute_status,  # 'added', 'recommended', or 'not_recommended'
             'type': c['type'],
             'date': c['date'],  # Keep original for sorting
@@ -430,6 +431,7 @@ def monthly_stats():
             all_display_items.append({
                 'ids': [act.id],
                 'names': [act.name],
+                'visibilities': [activity_visibility.get(act.id)],
                 'commute_status': commute_status,
                 'type': None,
                 'date': act.start_date,  # Keep original for sorting
@@ -605,16 +607,9 @@ def mass_edit():
     # Unchecked IDs (to remove commute flair)
     unchecked_ids = all_ids - checked_ids
     
-    access_token = session['access_token']
-    import requests as r
-    headers = {'Authorization': f'Bearer {access_token}'}
-    
-    # Mark checked activities as commute and set visibility to followers_only
+    # Mark checked activities as commute
     for aid in checked_ids:
         sc.update_activity(aid, commute=True)
-        r.put(f'https://www.strava.com/api/v3/activities/{aid}', 
-              headers=headers, 
-              data={'visibility': 'followers_only'})
     
     # Remove commute flair from unchecked activities
     for aid in unchecked_ids:

@@ -1,0 +1,107 @@
+# Strava Commute Tracker - Project Rules for AI Agents
+
+## Project Overview
+A Flask web application that tracks cycling/walking commutes using the Strava API. It automatically detects home and work locations from activity patterns, identifies commutes, provides monthly statistics, and allows bulk management of commute flags on Strava activities.
+
+## Tech Stack
+- **Backend**: Flask (Python 3.12+)
+- **Strava API**: `stravalib` library for OAuth and activity management
+- **Maps**: `folium` with heatmap plugin, `polyline` for GPS decoding
+- **Timezone**: `timezonefinder` + `zoneinfo` for local time display
+- **Frontend**: Jinja2 templates with Tailwind CSS (CDN)
+- **Package Manager**: `uv` (see `pyproject.toml` and `uv.lock`)
+
+## Project Structure
+```
+app.py              # Main Flask application (all routes and business logic)
+templates/
+  base.html         # Base template with nav, footer, Tailwind setup
+  index.html        # Landing page with Strava OAuth connect button
+  stats.html        # Main dashboard: monthly stats, activity table, heatmap
+pyproject.toml      # Dependencies and project metadata
+uv.lock             # Locked dependency versions
+```
+
+## Key Concepts
+
+### Location Detection (`identify_locations`)
+- Clusters activity start/end points (rounded to ~100m) to find the two most frequent locations
+- Uses departure times to distinguish Home (earlier departures) from Work (later departures)
+- Looks at 180 days of history for robust detection
+
+### Commute Detection (`analyze_commutes`)
+- **Direct commutes**: Single activity from Home→Work or Work→Home
+- **Chained commutes**: Multi-leg trips (e.g., bike + bus + bike) that eventually reach destination
+- Only considers weekdays (Mon-Fri) with a 3am cutoff (so late Friday night counts as Friday)
+- Uses `is_near()` with 1km threshold for location matching
+
+### Commute Status (in UI)
+- **Added**: Activity already has `commute=True` flag in Strava
+- **Recommended**: Algorithm detected as commute, but not yet flagged in Strava
+- **Not recommended**: Not detected as a commute
+
+### Visibility (in UI)
+- Displayed as read-only column: Public, Followers, or Private
+- Strava API does not allow editing visibility, only reading it
+
+### Time Handling
+- Strava returns times in UTC
+- App converts to local timezone (detected from home location) for display
+- `is_workday_with_cutoff()` handles the 3am boundary for late-night activities
+
+## Routes
+- `/` - Landing page or redirect to stats if authenticated
+- `/authorization` - Strava OAuth callback
+- `/logout` - Clear session
+- `/stats` - Main dashboard (accepts `month` and `activity_types[]` query params)
+- `/map/<month>` - Returns raw HTML heatmap (loaded in iframe), accepts `ids` param
+- `/mass_edit` (POST) - Bulk update commute flags on Strava
+
+## Environment Variables (via `.env`)
+- `STRAVA_CLIENT_ID` - Strava API client ID
+- `STRAVA_CLIENT_SECRET` - Strava API client secret  
+- `STRAVA_REDIRECT_URI` - OAuth redirect (default: http://localhost:5000/authorization)
+- `FLASK_SECRET_KEY` - Flask session encryption key
+- `RUN_SELF_TESTS` - Set to "1" to run self-tests on startup
+
+## Running the App
+```bash
+uv run flask run --debug
+# or
+uv run python app.py
+```
+
+## Supported Activity Types
+Defined in `ALL_ACTIVITY_TYPES` dict:
+- `Ride` → includes VirtualRide
+- `Walk`
+- `EBikeRide`  
+- `Run`
+
+Default filter is `Ride` only.
+
+## Common Modifications
+
+### Adding a new activity type
+1. Add to `ALL_ACTIVITY_TYPES` dict in `app.py`
+2. Add checkbox in `stats.html` activity type filters section
+
+### Changing commute detection logic
+- Location matching threshold: `is_near()` function (default 1km)
+- Chained commute max gap: 8 hours in `analyze_commutes()`
+- Weekend boundary: `cutoff_hour=3` in `is_workday_with_cutoff()`
+
+### Modifying statistics
+- Stats calculation is in `monthly_stats()` route
+- Time stats (avg, stddev) calculated with `calc_time_stats()`
+
+## Code Style Notes
+- Single-file Flask app (all logic in `app.py`)
+- Comments explain the "why" for non-obvious logic
+- Helper functions have docstrings
+- Template uses Tailwind utility classes directly
+
+## Known Behaviors
+- Visibility is read-only; the Strava API does not support updating activity visibility
+- Location detection uses all activity types, not just the currently filtered ones
+- Heatmap is lazy-loaded (requires button click) to avoid slow page loads
