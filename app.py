@@ -159,9 +159,10 @@ def _assign_home_work_by_time(activities, loc_a, loc_b):
     Disambiguates Home vs Work based on time-of-day patterns.
     
     We assume the morning commute starts from Home and the evening commute 
-    starts from Work.
+    starts from Work. Uses local timezone for correct ordering.
     """
-    # Collect departure times (minutes since midnight) from each location
+    tz_str = get_timezone_for_location(loc_a[0], loc_a[1]) if loc_a else None
+    # Collect departure times (minutes since midnight) in LOCAL time from each location
     times_from_a = []
     times_from_b = []
     
@@ -171,31 +172,48 @@ def _assign_home_work_by_time(activities, loc_a, loc_b):
         
         start_coords = act.start_latlng.root if hasattr(act.start_latlng, 'root') else act.start_latlng
         start_rounded = (round(float(start_coords[0]), 3), round(float(start_coords[1]), 3))
-        
-        minutes_since_midnight = act.start_date.hour * 60 + act.start_date.minute
-        
-        # Check which location this activity starts from
+
+        # Use LOCAL time for departure time (Strava returns UTC)
+        dt = act.start_date
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        if tz_str:
+            dt = convert_to_local_time(dt, tz_str)
+        hour = dt.hour
+        if hour < 3:
+            hour += 24
+        minutes_since_midnight = hour * 60 + dt.minute
+
         if start_rounded == tuple(loc_a):
             times_from_a.append(minutes_since_midnight)
         elif start_rounded == tuple(loc_b):
             times_from_b.append(minutes_since_midnight)
-    
-    # Calculate average departure times
+
     avg_from_a = sum(times_from_a) / len(times_from_a) if times_from_a else None
     avg_from_b = sum(times_from_b) / len(times_from_b) if times_from_b else None
     
-    # If we can't determine times, fall back to original order
-    if avg_from_a is None or avg_from_b is None:
-        return loc_a, loc_b
+    # Midday cutoff: departures before noon are typically "to work", after noon "to home"
+    MIDDAY_MINS = 12 * 60  # 720
     
-    # Home is where you leave earlier (morning commute to work)
-    # Work is where you leave later (evening commute to home)
-    if avg_from_a < avg_from_b:
-        # loc_a has earlier departures -> it's home
-        return loc_a, loc_b
-    else:
-        # loc_b has earlier departures -> it's home
-        return loc_b, loc_a
+    # Both locations have data: compare averages
+    if avg_from_a is not None and avg_from_b is not None:
+        if avg_from_a < avg_from_b:
+            return loc_a, loc_b  # loc_a has earlier departures -> home
+        return loc_b, loc_a  # loc_b has earlier departures -> home
+    
+    # Only one location has data: use single-location heuristic
+    # Evening departures (> midday) = work; morning departures = home
+    if avg_from_a is not None:
+        if avg_from_a > MIDDAY_MINS:
+            return loc_b, loc_a  # loc_a has evening departures -> work
+        return loc_a, loc_b  # loc_a has morning departures -> home
+    if avg_from_b is not None:
+        if avg_from_b > MIDDAY_MINS:
+            return loc_a, loc_b  # loc_b has evening departures -> work
+        return loc_b, loc_a  # loc_b has morning departures -> home
+    
+    # No data for either: fall back to original order
+    return loc_a, loc_b
 
 def is_near(p1, p2, threshold_km=1.0):
     if p1 is None or p2 is None:
@@ -241,6 +259,12 @@ def analyze_commutes(activities, home, work):
         if not is_workday_with_cutoff(act.start_date, cutoff_hour=3):
             i += 1
             continue
+
+        # Skip circular activities (start and end are near each other)
+        # These are not valid commutes and shouldn't be part of chained commutes
+        if is_near(act.start_latlng, act.end_latlng):
+            i += 1
+            continue
         
         # MATCHING: Check for simple, direct commutes (A -> B)
         is_h_to_w = is_near(act.start_latlng, home) and is_near(act.end_latlng, work)
@@ -275,6 +299,11 @@ def analyze_commutes(activities, home, work):
                 # don't allow it to contribute to a commute chain.
                 if not is_workday_with_cutoff(next_act.start_date, cutoff_hour=3):
                     break
+
+                # Skip circular activities - they shouldn't be part of a chained commute
+                if is_near(next_act.start_latlng, next_act.end_latlng):
+                    temp_i += 1
+                    continue
 
                 # Check if next activity starts reasonably soon and continues the journey
                 elapsed = chain[-1].elapsed_time
